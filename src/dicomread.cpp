@@ -43,6 +43,7 @@ DEFUN_DLD (dicomread, args, nargout,
   "-*- texinfo -*- \n\
 @deftypefn {} @var{image} = dicomread (@var{filename}) \n\
 @deftypefnx {} @var{image} = dicomread (@var{structure}) \n\
+@deftypefnx {} [@var{image}, @var{cmap}] = dicomread (___) \n\
 \n\
 Load the image from a DICOM file. \n\
 @subsubheading Inputs\n\
@@ -50,10 +51,12 @@ Load the image from a DICOM file. \n\
 \n\
 @var{structure} - a structure with a field @code{Filename} (such as returned by @code{dicominfo}).\n\
 \n\
-@var{image} - may be two or three dimensional, depending on the content of the file. \n\
-\n\
 @subsubheading Outputs\n\
-@var{image} - An integer or float matrix will be returned, the number of bits will depend on the file. \n\
+@var{image} - An integer or float matrix will be returned, the number of bits will depend on the file. \
+The image may be two or three dimensional, depending on the content of the file. \n\
+\n\
+@var{cmap} - Cx3 colormap associated with the image. Each row is a 3 element RGB triplet ion the range of 0 .. 1.\n \
+If the image does not have a color map, colormap is []\n\
 \n\
 @subsubheading Examples\n\
 Load the image data of a dcm file:\n\
@@ -121,7 +124,7 @@ image =\n\
         }
     }
 #endif
-  
+
   gdcm::ImageReader reader;
   reader.SetFileName (filename.c_str());
   if (!reader.Read())
@@ -129,7 +132,7 @@ image =\n\
       error (QUOTED(OCT_FN_NAME)": Could not read DICOM file with image: %s",filename.c_str());
       return retval;
     }
-  
+
   const gdcm::Image &image = reader.GetImage();
 
   const octave_idx_type ndim = image.GetNumberOfDimensions();
@@ -166,42 +169,42 @@ image =\n\
       //tested
       uint32NDArray arr(dv);
       image.GetBuffer ((char *)arr.fortran_vec());
-      return octave_value (arr.permute(perm_vect));
+      retval(0) = octave_value (arr.permute(perm_vect));
     }
   else if ( gdcm::PixelFormat::UINT16 == image.GetPixelFormat() )
     {
       //tested
       uint16NDArray arr(dv);
       image.GetBuffer ((char *)arr.fortran_vec());
-      return octave_value (arr.permute(perm_vect));
+      retval(0) = octave_value (arr.permute(perm_vect));
     }
   else if ( gdcm::PixelFormat::UINT8 == image.GetPixelFormat() )
     {
       //tested
       uint8NDArray arr(dv);
       image.GetBuffer ((char *)arr.fortran_vec());
-      return octave_value (arr.permute(perm_vect));
+      retval(0) = octave_value (arr.permute(perm_vect));
     }
   else if ( gdcm::PixelFormat::INT8 == image.GetPixelFormat() )
     { 
       // no example found to test
       int8NDArray arr(dv);
       image.GetBuffer((char *)arr.fortran_vec());
-      return octave_value(arr.permute(perm_vect));
+      retval(0) = octave_value(arr.permute(perm_vect));
     }
   else if ( gdcm::PixelFormat::INT16 == image.GetPixelFormat() )
     { 
       // no example found to test
       int16NDArray arr(dv);
       image.GetBuffer((char *)arr.fortran_vec());
-      return octave_value(arr.permute(perm_vect));
+      retval(0) = octave_value(arr.permute(perm_vect));
     }
   else if ( gdcm::PixelFormat::INT32 == image.GetPixelFormat() )
     { 
       // no example found to test
       int32NDArray arr(dv);
       image.GetBuffer((char *)arr.fortran_vec());
-      return octave_value(arr.permute(perm_vect));
+      retval(0) = octave_value(arr.permute(perm_vect));
     }
   else
     {
@@ -209,6 +212,34 @@ image =\n\
       error(QUOTED(OCT_FN_NAME)": pixel format not supported yet: %s", filename.c_str());
       return retval;
     }
+
+  if (nargout > 1)
+    {
+      // we want to putput the cmap
+      const gdcm::LookupTable &lut = image.GetLUT();
+      bool has_lut = (lut.GetBitSample() > 0);
+      unsigned short cmap_size = 0;
+      if (has_lut) {
+        unsigned short subscript, bitsize;
+        lut.GetLUTDescriptor(LookupTable::RED, cmap_size, subscript, bitsize);
+      }
+      Matrix cmap(cmap_size, 3);
+      if (has_lut)
+        {
+          std::vector<unsigned char> rgbaBuffer(cmap_size * 4);
+          lut.GetBufferAsRGBA(rgbaBuffer.data());
+          for (unsigned int idx = 0;idx < cmap_size; idx++)
+            {
+              cmap(idx, 0) = rgbaBuffer[idx*4 + 0]/256.0;
+              cmap(idx, 1) = rgbaBuffer[idx*4 + 1]/256.0;
+              cmap(idx, 2) = rgbaBuffer[idx*4 + 2]/256.0;
+            }
+        }
+
+      retval(1) = cmap;
+    }
+
+  return retval;
 }
 
 /*
