@@ -30,6 +30,7 @@
 #endif
 
 #include "gdcmImageReader.h"
+#include "gdcmByteSwap.h"
 using namespace gdcm;
 
 #define DICOM_ERR -1
@@ -38,6 +39,20 @@ using namespace gdcm;
 #define OCT_FN_NAME dicomread
 #define QUOTED_(x) #x
 #define QUOTED(x) QUOTED_(x)
+
+inline bool host_is_little_endian()
+{
+    uint16_t x = 1;
+    return *reinterpret_cast<uint8_t*>(&x) == 1;
+}
+
+template<typename T>
+void swap_buffer(T* p, size_t n)
+{
+    //ByteSwap<T>::SwapRange(p, n);
+    for (size_t i = 0; i < n; ++i)
+        gdcm::ByteSwap<T>::Swap(p[i]);
+}
 
 DEFUN_DLD (dicomread, args, nargout,
   "-*- texinfo -*- \n\
@@ -140,6 +155,15 @@ image =\n\
   // dim 0: cols (width)
   // dim 1: rows (height)
   // dim 2: number of frames
+   
+  gdcm::TransferSyntax ts =
+    reader.GetFile().GetHeader().GetDataSetTransferSyntax();
+
+  const bool host_le = host_is_little_endian();
+  const bool file_le = (ts.GetSwapCode() == gdcm::SwapCode::LittleEndian);
+  bool need_swap = (host_le != file_le);
+
+  //printf("swap = %d h=%d f=%d\n", (int)need_swap, (int)host_le, (int)file_le);
 
   dim_vector dv;
   Array<octave_idx_type> perm_vect(dim_vector(ndim,1));
@@ -169,6 +193,7 @@ image =\n\
       //tested
       uint32NDArray arr(dv);
       image.GetBuffer ((char *)arr.fortran_vec());
+      if (need_swap) swap_buffer<uint32_t>((uint32_t*)arr.fortran_vec(), arr.numel());
       retval(0) = octave_value (arr.permute(perm_vect));
     }
   else if ( gdcm::PixelFormat::UINT16 == image.GetPixelFormat() )
@@ -176,6 +201,7 @@ image =\n\
       //tested
       uint16NDArray arr(dv);
       image.GetBuffer ((char *)arr.fortran_vec());
+      if (need_swap) swap_buffer<uint16_t>((uint16_t*)arr.fortran_vec(), arr.numel());
       retval(0) = octave_value (arr.permute(perm_vect));
     }
   else if ( gdcm::PixelFormat::UINT8 == image.GetPixelFormat() )
@@ -194,9 +220,10 @@ image =\n\
     }
   else if ( gdcm::PixelFormat::INT16 == image.GetPixelFormat() )
     { 
-      // no example found to test
+      // tested
       int16NDArray arr(dv);
       image.GetBuffer((char *)arr.fortran_vec());
+      if (need_swap) swap_buffer<int16_t>((int16_t*)arr.fortran_vec(), arr.numel());
       retval(0) = octave_value(arr.permute(perm_vect));
     }
   else if ( gdcm::PixelFormat::INT32 == image.GetPixelFormat() )
@@ -204,6 +231,7 @@ image =\n\
       // no example found to test
       int32NDArray arr(dv);
       image.GetBuffer((char *)arr.fortran_vec());
+      if (need_swap) swap_buffer<int32_t>((int32_t*)arr.fortran_vec(), arr.numel());
       retval(0) = octave_value(arr.permute(perm_vect));
     }
   else
