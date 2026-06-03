@@ -294,7 +294,8 @@ Load the 1st and 10th frame of image data from a dcm file:\n\
       // tested
       int16NDArray arr(dv);
       image.GetBuffer((char *)arr.fortran_vec());
-      if (need_swap) swap_buffer<int16_t>((int16_t*)arr.fortran_vec(), arr.numel());
+      // the dicom swap function appears to mess with the sign when unsigned values, so using unsigned swap here
+      if (need_swap) swap_buffer<uint16_t>((uint16_t*)arr.fortran_vec(), arr.numel());
       retval(0) = octave_value(arr.permute(perm_vect));
     }
   else if ( gdcm::PixelFormat::INT32 == image.GetPixelFormat() )
@@ -302,7 +303,8 @@ Load the 1st and 10th frame of image data from a dcm file:\n\
       // no example found to test
       int32NDArray arr(dv);
       image.GetBuffer((char *)arr.fortran_vec());
-      if (need_swap) swap_buffer<int32_t>((int32_t*)arr.fortran_vec(), arr.numel());
+      // the dicom swap function appears to mess with the sign when unsigned values, so using unsigned swap here
+      if (need_swap) swap_buffer<uint32_t>((uint32_t*)arr.fortran_vec(), arr.numel());
       retval(0) = octave_value(arr.permute(perm_vect));
     }
   else
