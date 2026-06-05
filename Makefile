@@ -126,6 +126,13 @@ doc/$(PACKAGE).qhc: doc/$(PACKAGE).html
 doc/functions.texi: $(RELEASE_DIR_DEP)
 	cd doc && ./mkfuncdocs.py --src-dir=../inst/ --src-dir=../src/ ../INDEX | $(SED) 's/@seealso/@xseealso/g' > functions.texi
 
+# Doc cache
+.PHONY: doc-cache clean-doc-cache
+doc-cache:
+	cd doc && ./mkdoccache.m ../inst ../inst/+images/+dicom/
+
+clean-doc-cache:
+	$(RM) -f inst/doc-cache src/doc-cache
 
 $(RELEASE_DIR): $(RELEASE_DIR_DEP)
 	@echo "Creating package version $(VERSION) release ..."
@@ -137,9 +144,16 @@ ifeq (${vcs},git)
 	$(GIT) archive --format=tar --prefix="$@/" HEAD | $(TAR) -x
 	$(RM) "$@/.gitignore"
 endif
+ifneq (,$(wildcard src/bootstrap))
 	cd "$@/src" && ./bootstrap && $(RM) -r "autom4te.cache"
+endif
+ifneq (,$(wildcard doc/mkfuncdocs.py))
 	# build docs
 	$(MAKE) -C "$@" docs
+endif
+ifneq (,$(wildcard doc/mkdoccache.m))
+	$(MAKE) -C "$@" doc-cache
+endif
 	chmod -R a+rX,u+w,go-w "$@"
 
 html_options = --eval 'options = get_html_options ("octave-forge");' \
@@ -193,7 +207,7 @@ doctest: all
 	  --eval "targets = {'$(TOPDIR)/inst', '$(TOPDIR)/src'};" \
 	  --eval "doctest (targets);"
 
-clean: clean-docs
+clean: clean-docs clean-doc-cache
 	$(RM) -r $(TARGET_DIR) fntests.log
 	test ! -e src/Makefile || $(MAKE) -C src clean
 
